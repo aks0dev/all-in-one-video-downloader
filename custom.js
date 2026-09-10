@@ -523,3 +523,34 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 });
+
+// Copy UPI ID helper for Buy Me a Coffee (aks0@slc)
+function copyUpiId() {
+  const upiId = 'aks0@slc';
+  navigator.clipboard.writeText(upiId).then(() => {
+    const cardBtn = document.getElementById('copyUpiCardBtn');
+    const navBtn = document.getElementById('navCoffeeBtn');
+
+    if (cardBtn) {
+      const origText = cardBtn.innerHTML;
+      cardBtn.innerHTML = '✓ Copied!';
+      cardBtn.style.background = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
+      setTimeout(() => {
+        cardBtn.innerHTML = origText;
+        cardBtn.style.background = 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)';
+      }, 2500);
+    }
+
+    if (navBtn) {
+      const origText = navBtn.innerHTML;
+      navBtn.innerHTML = '✓ Copied!';
+      navBtn.style.background = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
+      setTimeout(() => {
+        navBtn.innerHTML = origText;
+        navBtn.style.background = 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)';
+      }, 2500);
+    }
+  }).catch(() => {
+    alert('Buy Me a Coffee - UPI ID: aks0@slc');
+  });
+}
