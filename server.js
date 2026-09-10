@@ -25,7 +25,7 @@ function getYtdlCmd() {
     return { cmd: 'python', argsPrefix: ['-m', 'yt_dlp'] };
   }
   // Linux / macOS (Render / Cloud environment)
-  return { cmd: 'python3', argsPrefix: ['-m', 'yt_dlp'] };
+  return { cmd: 'yt-dlp', argsPrefix: [] };
 }
 
 // Format duration helper (seconds to MM:SS or HH:MM:SS)
@@ -58,6 +58,43 @@ function parseYoutubeId(input) {
   return match ? match[1] : null;
 }
 
+// Helper to execute yt-dlp with automatic fallback
+function spawnYtdl(extraArgs, onStdout, onStderr, onClose) {
+  const { cmd, argsPrefix } = getYtdlCmd();
+  const fullArgs = [...argsPrefix, ...extraArgs];
+
+  const child = spawn(cmd, fullArgs);
+  let hasErrored = false;
+
+  child.stdout.on('data', onStdout);
+  child.stderr.on('data', onStderr);
+
+  child.on('error', err => {
+    console.warn(`Primary yt-dlp command "${cmd}" error:`, err.message);
+    hasErrored = true;
+    // Fallback on Linux if 'yt-dlp' binary wasn't found in PATH
+    if (cmd !== 'python3') {
+      console.log('Attempting fallback to python3 -m yt_dlp...');
+      const fallbackChild = spawn('python3', ['-m', 'yt_dlp', ...extraArgs]);
+      fallbackChild.stdout.on('data', onStdout);
+      fallbackChild.stderr.on('data', onStderr);
+      fallbackChild.on('close', onClose);
+      fallbackChild.on('error', fbErr => {
+        console.error('Fallback python3 spawn error:', fbErr);
+        onClose(1);
+      });
+    } else {
+      onClose(1);
+    }
+  });
+
+  child.on('close', code => {
+    if (!hasErrored) onClose(code);
+  });
+
+  return child;
+}
+
 // API Endpoint: Autocomplete Suggestions
 app.get('/api/suggest', (req, res) => {
   const query = req.query.q;
@@ -83,50 +120,57 @@ app.get('/api/suggest', (req, res) => {
 
 // API Endpoint: Search YouTube Videos
 app.get('/api/search', (req, res) => {
-  const query = req.query.q;
+  const query = req.query.q || req.query.query;
   if (!query) {
-    return res.status(400).json({ error: 'Search query parameter q is required' });
+    return res.status(400).json({ error: 'Search query parameter (q) is required' });
   }
 
-  const { cmd, argsPrefix } = getYtdlCmd();
-  const searchArg = `ytsearch8:${query}`;
-  const args = [
-    ...argsPrefix,
-    '--flat-playlist',
-    '--dump-single-json',
-    searchArg
+  const maxResults = parseInt(req.query.limit || '8', 10);
+  const extraArgs = [
+    '--no-warnings',
+    '--no-check-certificates',
+    '--geo-bypass',
+    '-j',
+    `ytsearch${maxResults}:${query}`
   ];
 
-  const child = spawn(cmd, args);
   let output = '';
   let errorOutput = '';
 
-  child.stdout.on('data', data => { output += data.toString(); });
-  child.stderr.on('data', data => { errorOutput += data.toString(); });
+  spawnYtdl(
+    extraArgs,
+    data => { output += data.toString(); },
+    data => { errorOutput += data.toString(); },
+    code => {
+      if (!output) {
+        console.error('Search error output:', errorOutput);
+        return res.status(500).json({ error: 'Search failed' });
+      }
 
-  child.on('close', code => {
-    if (code !== 0 && !output) {
-      console.error('Search error:', errorOutput);
-      return res.status(500).json({ error: 'Failed to search YouTube videos' });
-    }
+      try {
+        const lines = output.trim().split('\n').filter(Boolean);
+        const results = lines.map(line => {
+          try {
+            const item = JSON.parse(line);
+            return {
+              id: item.id,
+              title: item.title,
+              duration: formatDuration(item.duration),
+              thumbnail: `https://i.ytimg.com/vi/${item.id}/hqdefault.jpg`,
+              channel: item.uploader || item.channel || 'YouTube'
+            };
+          } catch (e) {
+            return null;
+          }
+        }).filter(Boolean);
 
-    try {
-      const data = JSON.parse(output);
-      const entries = data.entries || [];
-      const results = entries.map(item => ({
-        id: item.id,
-        title: item.title,
-        channel: item.uploader || item.channel || 'YouTube',
-        duration: formatDuration(item.duration),
-        thumbnail: item.thumbnails && item.thumbnails.length ? item.thumbnails[item.thumbnails.length - 1].url : `https://i.ytimg.com/vi/${item.id}/hqdefault.jpg`,
-        url: `https://www.youtube.com/watch?v=${item.id}`
-      }));
-      return res.json({ results });
-    } catch (e) {
-      console.error('JSON parse error in search:', e);
-      return res.status(500).json({ error: 'Invalid response from search engine' });
+        return res.json({ results });
+      } catch (e) {
+        console.error('JSON parse error in search:', e);
+        return res.status(500).json({ error: 'Invalid response from search engine' });
+      }
     }
-  });
+  );
 });
 
 // API Endpoint: Analyze / Fetch Video Info
@@ -139,25 +183,26 @@ app.get('/api/info', (req, res) => {
   const videoId = parseYoutubeId(input);
   const targetUrl = videoId ? `https://www.youtube.com/watch?v=${videoId}` : input;
 
-  const { cmd, argsPrefix } = getYtdlCmd();
-  const args = [
-    ...argsPrefix,
+  const extraArgs = [
+    '--no-warnings',
+    '--no-check-certificates',
+    '--geo-bypass',
     '-j',
     targetUrl
   ];
 
-  const child = spawn(cmd, args);
   let output = '';
   let errorOutput = '';
 
-  child.stdout.on('data', data => { output += data.toString(); });
-  child.stderr.on('data', data => { errorOutput += data.toString(); });
-
-  child.on('close', code => {
-    if (!output) {
-      console.error('Info extraction error:', errorOutput);
-      return res.status(500).json({ error: 'Could not fetch video information. Please check the URL.' });
-    }
+  spawnYtdl(
+    extraArgs,
+    data => { output += data.toString(); },
+    data => { errorOutput += data.toString(); },
+    code => {
+      if (!output) {
+        console.error('Info extraction error:', errorOutput);
+        return res.status(500).json({ error: 'Could not fetch video information. Please check the URL.' });
+      }
 
     try {
       const data = JSON.parse(output);

@@ -5,7 +5,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "postinstall": "pip install yt-dlp --upgrade || python3 -m pip install yt-dlp --upgrade || true"
   },
   "keywords": [
     "video-downloader",
