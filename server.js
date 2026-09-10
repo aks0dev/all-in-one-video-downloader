@@ -58,34 +58,38 @@ function parseYoutubeId(input) {
   return match ? match[1] : null;
 }
 
-// Helper to execute yt-dlp with automatic fallback
+// Helper to execute yt-dlp with automatic fallback & bot-bypass flags
 function spawnYtdl(extraArgs, onStdout, onStderr, onClose) {
   const { cmd, argsPrefix } = getYtdlCmd();
-  const fullArgs = [...argsPrefix, ...extraArgs];
+
+  const bypassFlags = [
+    '--no-warnings',
+    '--no-check-certificates',
+    '--geo-bypass',
+    '--extractor-args', 'youtube:player_client=android,web',
+    '--user-agent', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36'
+  ];
+
+  const fullArgs = [...argsPrefix, ...bypassFlags, ...extraArgs];
 
   const child = spawn(cmd, fullArgs);
   let hasErrored = false;
 
-  child.stdout.on('data', onStdout);
-  child.stderr.on('data', onStderr);
+  if (onStdout) child.stdout.on('data', onStdout);
+  if (onStderr) child.stderr.on('data', onStderr);
 
   child.on('error', err => {
     console.warn(`Primary yt-dlp command "${cmd}" error:`, err.message);
     hasErrored = true;
-    // Fallback on Linux if 'yt-dlp' binary wasn't found in PATH
-    if (cmd !== 'python3') {
-      console.log('Attempting fallback to python3 -m yt_dlp...');
-      const fallbackChild = spawn('python3', ['-m', 'yt_dlp', ...extraArgs]);
-      fallbackChild.stdout.on('data', onStdout);
-      fallbackChild.stderr.on('data', onStderr);
-      fallbackChild.on('close', onClose);
-      fallbackChild.on('error', fbErr => {
-        console.error('Fallback python3 spawn error:', fbErr);
-        onClose(1);
-      });
-    } else {
+    console.log('Attempting fallback to python3 -m yt_dlp...');
+    const fallbackChild = spawn('python3', ['-m', 'yt_dlp', ...bypassFlags, ...extraArgs]);
+    if (onStdout) fallbackChild.stdout.on('data', onStdout);
+    if (onStderr) fallbackChild.stderr.on('data', onStderr);
+    fallbackChild.on('close', onClose);
+    fallbackChild.on('error', fbErr => {
+      console.error('Fallback python3 spawn error:', fbErr);
       onClose(1);
-    }
+    });
   });
 
   child.on('close', code => {
@@ -108,14 +112,12 @@ app.get('/api/suggest', (req, res) => {
       try {
         const json = JSON.parse(raw);
         const suggestions = json[1] || [];
-        res.json(suggestions);
+        return res.json(suggestions);
       } catch (e) {
-        res.json([]);
+        return res.json([]);
       }
     });
-  }).on('error', () => {
-    res.json([]);
-  });
+  }).on('error', () => res.json([]));
 });
 
 // API Endpoint: Search YouTube Videos
@@ -127,9 +129,6 @@ app.get('/api/search', (req, res) => {
 
   const maxResults = parseInt(req.query.limit || '8', 10);
   const extraArgs = [
-    '--no-warnings',
-    '--no-check-certificates',
-    '--geo-bypass',
     '-j',
     `ytsearch${maxResults}:${query}`
   ];
@@ -184,9 +183,6 @@ app.get('/api/info', (req, res) => {
   const targetUrl = videoId ? `https://www.youtube.com/watch?v=${videoId}` : input;
 
   const extraArgs = [
-    '--no-warnings',
-    '--no-check-certificates',
-    '--geo-bypass',
     '-j',
     targetUrl
   ];
@@ -320,9 +316,7 @@ app.get('/api/download', (req, res) => {
   }
   const tempFilePath = path.join(tempDir, `${downloadId}.${ext}`);
 
-  const { cmd, argsPrefix } = getYtdlCmd();
-  const args = [
-    ...argsPrefix,
+  const extraArgs = [
     '--newline',
     '-f', formatArg,
     isAudio ? '--extract-audio' : '--merge-output-format',
@@ -334,8 +328,6 @@ app.get('/api/download', (req, res) => {
   ].filter(Boolean);
 
   updateProgress(downloadId, 1, 'Downloading 1%');
-
-  const child = spawn(cmd, args);
 
   let destCount = 0;
   let isMultiStream = false;
@@ -380,54 +372,45 @@ app.get('/api/download', (req, res) => {
     }
   };
 
-  child.stdout.on('data', parseProgressOutput);
-  child.stderr.on('data', data => {
-    console.warn('Download stderr:', data.toString());
-    parseProgressOutput(data);
-  });
+  const child = spawnYtdl(
+    extraArgs,
+    parseProgressOutput,
+    data => {
+      console.warn('Download stderr:', data.toString());
+      parseProgressOutput(data);
+    },
+    code => {
+      if (code === 0 && fs.existsSync(tempFilePath)) {
+        updateProgress(downloadId, 99, 'Sending file...');
+        res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(cleanTitle)}.${ext}"`);
+        res.setHeader('Content-Type', isAudio ? (ext === 'm4a' ? 'audio/mp4' : 'audio/mpeg') : 'video/mp4');
 
-  child.on('close', code => {
-    if (code === 0 && fs.existsSync(tempFilePath)) {
-      updateProgress(downloadId, 99, 'Sending file...');
-      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(cleanTitle)}.${ext}"`);
-      res.setHeader('Content-Type', isAudio ? (ext === 'm4a' ? 'audio/mp4' : 'audio/mpeg') : 'video/mp4');
+        const fileStream = fs.createReadStream(tempFilePath);
+        fileStream.pipe(res);
 
-      const fileStream = fs.createReadStream(tempFilePath);
-      fileStream.pipe(res);
+        fileStream.on('end', () => {
+          updateProgress(downloadId, 100, 'Completed!');
+          fs.unlink(tempFilePath, () => {});
+          setTimeout(() => { activeDownloads.delete(downloadId); }, 5000);
+        });
 
-      fileStream.on('end', () => {
-        updateProgress(downloadId, 100, 'Completed!');
-        fs.unlink(tempFilePath, () => {});
-        setTimeout(() => { activeDownloads.delete(downloadId); }, 5000);
-      });
-
-      fileStream.on('error', (err) => {
-        console.error('File stream error:', err);
+        fileStream.on('error', (err) => {
+          console.error('File stream error:', err);
+          updateProgress(downloadId, 0, 'Failed');
+          fs.unlink(tempFilePath, () => {});
+        });
+      } else {
+        console.error(`Download child process exited with code ${code}`);
         updateProgress(downloadId, 0, 'Failed');
-        fs.unlink(tempFilePath, () => {});
-      });
-    } else {
-      console.error(`Download child process exited with code ${code}`);
-      updateProgress(downloadId, 0, 'Failed');
-      if (!res.headersSent) {
-        res.status(500).send('Failed to process video download');
-      }
-      if (fs.existsSync(tempFilePath)) {
-        fs.unlink(tempFilePath, () => {});
+        if (!res.headersSent) {
+          res.status(500).send('Failed to process video download');
+        }
+        if (fs.existsSync(tempFilePath)) {
+          fs.unlink(tempFilePath, () => {});
+        }
       }
     }
-  });
-
-  child.on('error', err => {
-    console.error('Download spawn error:', err);
-    updateProgress(downloadId, 0, 'Failed');
-    if (!res.headersSent) {
-      res.status(500).send('Download process failed');
-    }
-    if (fs.existsSync(tempFilePath)) {
-      fs.unlink(tempFilePath, () => {});
-    }
-  });
+  );
 
   req.on('close', () => {
     if (!res.writableEnded) {
