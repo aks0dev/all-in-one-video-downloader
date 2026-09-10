@@ -524,32 +524,44 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 });
 
+// Buy Me a Coffee Modal Toggle
+function toggleCoffeeModal(show) {
+  const modal = document.getElementById('coffeeModal');
+  if (!modal) return;
+  if (show) {
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+  } else {
+    modal.style.display = 'none';
+    document.body.style.overflow = '';
+  }
+}
+
+function closeCoffeeModal(e) {
+  if (e && e.target && e.target.id === 'coffeeModal') {
+    toggleCoffeeModal(false);
+  }
+}
+
 // Copy UPI ID helper for Buy Me a Coffee (aks0@slc)
 function copyUpiId() {
   const upiId = 'aks0@slc';
   navigator.clipboard.writeText(upiId).then(() => {
     const cardBtn = document.getElementById('copyUpiCardBtn');
     const navBtn = document.getElementById('navCoffeeBtn');
+    const modalBtn = document.getElementById('modalCopyBtn');
 
-    if (cardBtn) {
-      const origText = cardBtn.innerHTML;
-      cardBtn.innerHTML = '✓ Copied!';
-      cardBtn.style.background = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
-      setTimeout(() => {
-        cardBtn.innerHTML = origText;
-        cardBtn.style.background = 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)';
-      }, 2500);
-    }
-
-    if (navBtn) {
-      const origText = navBtn.innerHTML;
-      navBtn.innerHTML = '✓ Copied!';
-      navBtn.style.background = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
-      setTimeout(() => {
-        navBtn.innerHTML = origText;
-        navBtn.style.background = 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)';
-      }, 2500);
-    }
+    [cardBtn, navBtn, modalBtn].forEach(btn => {
+      if (btn) {
+        const origText = btn.innerHTML;
+        btn.innerHTML = '✓ Copied!';
+        btn.style.background = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
+        setTimeout(() => {
+          btn.innerHTML = origText;
+          btn.style.background = 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)';
+        }, 2500);
+      }
+    });
   }).catch(() => {
     alert('Buy Me a Coffee - UPI ID: aks0@slc');
   });

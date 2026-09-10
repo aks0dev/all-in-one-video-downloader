@@ -870,7 +870,7 @@ li.selected {
         <ul class="menu-navbar">
           <li class="navbar"><a href="index.html" class="active-nav">YouTube Downloader</a></li>
           <li class="navbar">
-            <button type="button" onclick="copyUpiId()" id="navCoffeeBtn" style="display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: #ffffff; border: none; border-radius: 20px; padding: 7px 16px; font-weight: 700; font-size: 13px; cursor: pointer; box-shadow: 0 4px 14px rgba(245, 158, 11, 0.4); transition: all 0.2s ease;">
+            <button type="button" onclick="toggleCoffeeModal(true)" id="navCoffeeBtn" style="display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: #ffffff; border: none; border-radius: 20px; padding: 7px 16px; font-weight: 700; font-size: 13px; cursor: pointer; box-shadow: 0 4px 14px rgba(245, 158, 11, 0.4); transition: all 0.2s ease;">
               ☕ Buy Me a Coffee
             </button>
           </li>
@@ -906,9 +906,15 @@ li.selected {
 
               <div class="suggesstion-list suggesstion-box"></div>
               <p class="y2mate-terms">By using our free service you agree to our <a href="terms-condition/index.html">Terms of Service</a>.</p>
+              <div class="render-notice" style="margin-top: 12px; font-size: 12px; color: #fbbf24; background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.28); border-radius: 12px; padding: 7px 16px; display: inline-flex; align-items: center; gap: 6px; font-weight: 600;">
+                <span>⚡ Note: Initial conversion may take ~30 seconds as the free Render server spins up. Please wait...</span>
+              </div>
             </form>
             <div class="spinner" style="display: none; text-align: center; margin: 30px auto;">
               <img id="loading_img" src="asset/loading.gif" alt="Loading converter..." style="width: 64px; height: 64px; display: inline-block; vertical-align: middle;">
+              <p style="color: #fbbf24; font-size: 13px; font-weight: 700; margin: 12px 0 0 0;">
+                Analyzing video... Free Render instance may take ~30 seconds on first request. Please wait...
+              </p>
             </div>
           </div>
         </div>
@@ -926,12 +932,18 @@ li.selected {
           </div>
         </div>
 
-        <div style="display: flex; align-items: center; gap: 10px; background: rgba(30, 41, 59, 0.9); padding: 10px 16px; border-radius: 14px; border: 1px solid rgba(245, 158, 11, 0.3); box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);">
-          <span style="font-size: 12px; color: #94a3b8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">UPI ID:</span>
-          <code id="upiIdText" style="font-size: 15px; font-weight: 800; color: #fbbf24; font-family: monospace; letter-spacing: 0.5px;">aks0@slc</code>
-          <button type="button" id="copyUpiCardBtn" onclick="copyUpiId()" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: #ffffff; border: none; border-radius: 10px; padding: 7px 16px; font-weight: 700; font-size: 13px; cursor: pointer; transition: all 0.2s ease; box-shadow: 0 4px 14px rgba(245, 158, 11, 0.35);">
-            📋 Copy UPI
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+          <button type="button" onclick="toggleCoffeeModal(true)" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: #ffffff; border: none; border-radius: 12px; padding: 9px 18px; font-weight: 800; font-size: 13px; cursor: pointer; transition: all 0.2s ease; box-shadow: 0 4px 14px rgba(245, 158, 11, 0.4); display: inline-flex; align-items: center; gap: 6px;">
+            📱 Scan QR Code
           </button>
+
+          <div style="display: flex; align-items: center; gap: 8px; background: rgba(30, 41, 59, 0.9); padding: 8px 14px; border-radius: 12px; border: 1px solid rgba(245, 158, 11, 0.3);">
+            <span style="font-size: 12px; color: #94a3b8; font-weight: 700; text-transform: uppercase;">UPI:</span>
+            <code style="font-size: 14px; font-weight: 800; color: #fbbf24; font-family: monospace;">aks0@slc</code>
+            <button type="button" id="copyUpiCardBtn" onclick="copyUpiId()" style="background: rgba(255, 255, 255, 0.1); color: #ffffff; border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; padding: 4px 10px; font-weight: 700; font-size: 12px; cursor: pointer; transition: all 0.2s ease;">
+              📋 Copy
+            </button>
+          </div>
         </div>
       </section>
 
@@ -960,6 +972,43 @@ li.selected {
       </section>
     </div>
   </main>
+
+  <!-- Buy Me a Coffee / UPI QR Code Modal Overlay -->
+  <div id="coffeeModal" onclick="closeCoffeeModal(event)" style="display: none; position: fixed; inset: 0; z-index: 99999; background: rgba(8, 12, 20, 0.85); backdrop-filter: blur(16px); align-items: center; justify-content: center; padding: 20px; box-sizing: border-box;">
+    <div style="background: radial-gradient(circle at 50% 0%, rgba(245, 158, 11, 0.25), transparent 70%), rgba(15, 23, 42, 0.95); border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 24px; padding: 28px 24px; max-width: 380px; width: 100%; text-align: center; backdrop-filter: blur(20px); box-shadow: 0 25px 60px rgba(0,0,0,0.8), 0 0 40px rgba(245, 158, 11, 0.2); position: relative; animation: coffeeModalPop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);">
+      
+      <!-- Close Button -->
+      <button type="button" onclick="toggleCoffeeModal(false)" aria-label="Close" style="position: absolute; top: 16px; right: 16px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #94a3b8; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; font-size: 16px; cursor: pointer; transition: all 0.2s ease;">
+        ✕
+      </button>
+
+      <!-- Badge / Title -->
+      <div style="display: inline-flex; align-items: center; gap: 8px; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.35); color: #fbbf24; padding: 6px 16px; border-radius: 30px; font-size: 13px; font-weight: 700; margin-bottom: 16px;">
+        ☕ Buy Me a Coffee
+      </div>
+
+      <h3 style="font-size: 20px; font-weight: 800; color: #ffffff; margin: 0 0 6px 0;">Scan & Pay via UPI</h3>
+      <p style="font-size: 13px; color: #94a3b8; margin: 0 0 18px 0;">Use any UPI App (GPay, PhonePe, Paytm, BHIM)</p>
+
+      <!-- QR Code Image Box -->
+      <div style="background: #ffffff; padding: 14px; border-radius: 20px; display: inline-block; box-shadow: 0 10px 30px rgba(245, 158, 11, 0.3); border: 2px solid rgba(245, 158, 11, 0.5); margin-bottom: 18px;">
+        <img src="asset/aks0@slc.jpeg" alt="UPI QR Code aks0@slc" style="width: 220px; height: 220px; object-fit: contain; border-radius: 12px; display: block;">
+      </div>
+
+      <!-- UPI ID Field & Copy Button -->
+      <div style="background: rgba(30, 41, 59, 0.9); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 14px; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 16px;">
+        <div style="text-align: left;">
+          <span style="font-size: 11px; color: #94a3b8; display: block; font-weight: 700; text-transform: uppercase;">UPI ID</span>
+          <code style="font-size: 15px; font-weight: 800; color: #fbbf24; font-family: monospace;">aks0@slc</code>
+        </div>
+        <button type="button" id="modalCopyBtn" onclick="copyUpiId()" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: #ffffff; border: none; border-radius: 10px; padding: 8px 16px; font-weight: 700; font-size: 13px; cursor: pointer; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);">
+          📋 Copy
+        </button>
+      </div>
+
+      <p style="font-size: 12px; color: #64748b; margin: 0;">Support developer <strong style="color: #cbd5e1;">aks0dev</strong></p>
+    </div>
+  </div>
 
   <footer class="footer aks0-footer-clean" style="flex-shrink: 0; margin-top: auto; width: 100%; background-color: #090d16; border-top: 1px solid rgba(255, 255, 255, 0.1); padding: 40px 0 30px 0; color: #cbd5e1; text-align: center;">
     <div class="container">

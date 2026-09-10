@@ -689,6 +689,11 @@ li.selected {
     to { transform: rotate(360deg); }
 }
 
+@keyframes coffeeModalPop {
+    from { opacity: 0; transform: scale(0.88) translateY(12px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
 #search_result .col-md-5 {
     width: 41.6667%;
 }
